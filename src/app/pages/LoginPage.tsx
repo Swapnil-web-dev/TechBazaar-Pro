@@ -26,7 +26,7 @@ export function LoginPage() {
       toast.success('Welcome back! 🎉');
       navigate('/');
     } else {
-      toast.error('Invalid credentials. Password must be 4+ characters.');
+      toast.error('User not found. Please register first.');
     }
   };
 
@@ -86,10 +86,6 @@ export function LoginPage() {
             <div className="mt-4 text-center text-sm text-gray-500">
               Don't have an account?{' '}
               <Link to="/register" className="text-purple-600 font-semibold hover:underline">Create account</Link>
-            </div>
-
-            <div className="mt-6 p-4 bg-blue-50 rounded-xl text-xs text-gray-500">
-              <strong>Demo tip:</strong> Enter any email + any password (4+ chars) to log in.
             </div>
           </CardContent>
         </Card>

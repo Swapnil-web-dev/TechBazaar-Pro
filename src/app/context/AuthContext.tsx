@@ -31,9 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock auth — accept any valid-looking credentials
-    if (!email || !password || password.length < 4) return false;
-
     // Admin login check
     if (email.toLowerCase() === 'swapnil' && password === 'swap@1522') {
       const adminUser: User = {
@@ -47,29 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     }
 
-    const mockUser: User = {
-      id: Math.random().toString(36).slice(2),
-      name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      email,
-      role: email.includes('vendor') ? 'vendor' : 'student',
-      joinDate: new Date().toISOString().split('T')[0],
-      status: 'Active',
-    };
-
-    // Add to all users list if not exists
+    // Check if user is registered
     try {
       const allUsers = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
-      if (!allUsers.find((u: User) => u.email === mockUser.email)) {
-        allUsers.push(mockUser);
-        localStorage.setItem('tb_all_users', JSON.stringify(allUsers));
+      const existingUser = allUsers.find((u: User) => u.email === email);
+      if (existingUser) {
+        setUser(existingUser);
+        localStorage.setItem('tb_user', JSON.stringify(existingUser));
+        return true;
       }
+      return false; // Not registered
     } catch (e) {
       console.error(e);
+      return false;
     }
-
-    setUser(mockUser);
-    localStorage.setItem('tb_user', JSON.stringify(mockUser));
-    return true;
   };
 
   const register = async (name: string, email: string, _password: string, role: 'student' | 'vendor' | 'admin'): Promise<boolean> => {

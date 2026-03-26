@@ -32,6 +32,7 @@ export function AdminDashboardPage() {
       return [];
     }
   });
+  const [selectedUser, setSelectedUser] = useState<any>(null);
 
   // Route protection
   if (!user || user.role !== 'admin') {
@@ -102,7 +103,14 @@ export function AdminDashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-500 mt-1">View and manage registered students and vendors.</p>
         </div>
-        <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Add New User</Button>
+        <div className="flex gap-4">
+          <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
+            localStorage.removeItem('tb_all_users');
+            setRegisteredUsers([]);
+            toast.success('All users cleared from admin panel');
+          }}>Clear All Users</Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Add New User</Button>
+        </div>
       </div>
 
       <Card className="border-0 shadow-sm bg-white overflow-hidden">
@@ -151,7 +159,8 @@ export function AdminDashboardPage() {
                     </span>
                   </td>
                   <td className="p-4 text-right">
-                    <button className="text-indigo-600 hover:underline">Edit</button>
+                    <button onClick={() => setSelectedUser(u)} className="text-emerald-600 font-medium hover:underline mr-4">Show</button>
+                    <button className="text-indigo-600 font-medium hover:underline">Edit</button>
                   </td>
                 </tr>
               ))}
@@ -159,6 +168,27 @@ export function AdminDashboardPage() {
           </table>
         </div>
       </Card>
+
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md bg-white shadow-xl relative border-0">
+            <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
+              <CardTitle className="text-xl">User Details</CardTitle>
+              <button onClick={() => setSelectedUser(null)} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">✕</button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 pt-6 text-sm">
+                <div className="flex border-b pb-3"><span className="text-gray-500 w-28 font-medium">ID:</span> <span className="font-mono text-gray-900">{selectedUser.id}</span></div>
+                <div className="flex border-b pb-3"><span className="text-gray-500 w-28 font-medium">Name:</span> <span className="font-bold text-gray-900">{selectedUser.name}</span></div>
+                <div className="flex border-b pb-3"><span className="text-gray-500 w-28 font-medium">Email:</span> <span className="font-medium text-gray-900">{selectedUser.email}</span></div>
+                <div className="flex border-b pb-3"><span className="text-gray-500 w-28 font-medium">Role:</span> <span className="capitalize text-gray-900">{selectedUser.role}</span></div>
+                <div className="flex border-b pb-3"><span className="text-gray-500 w-28 font-medium">Join Date:</span> <span className="text-gray-900">{selectedUser.joinDate || '-'}</span></div>
+                <div className="flex pb-2"><span className="text-gray-500 w-28 font-medium">Status:</span> <span className="text-gray-900">{selectedUser.status || 'Active'}</span></div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </>
   );
 
