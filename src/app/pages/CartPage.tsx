@@ -8,10 +8,12 @@ import { Separator } from '../components/ui/separator';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Package } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
 export function CartPage() {
   const { cartItems, cartTotal, cartCount, updateQty, removeFromCart, clearCart } = useCart();
+  const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
 
   const delivery = cartTotal >= 500 ? 0 : 49;
@@ -146,7 +148,14 @@ export function CartPage() {
                 )}
 
                 <Button
-                  onClick={() => navigate('/checkout')}
+                  onClick={() => {
+                    if (!isLoggedIn) {
+                      toast.error('Please login to proceed to checkout');
+                      navigate('/login');
+                    } else {
+                      navigate('/checkout');
+                    }
+                  }}
                   className="w-full bg-purple-600 hover:bg-purple-700 h-12 text-base"
                 >
                   Proceed to Checkout

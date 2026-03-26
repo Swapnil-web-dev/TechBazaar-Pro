@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, Navigate } from 'react-router';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { Button } from '../components/ui/button';
@@ -9,13 +9,19 @@ import { Label } from '../components/ui/label';
 import { Separator } from '../components/ui/separator';
 import { MapPin, CreditCard, Smartphone, Truck, CheckCircle2, Lock } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
 type PaymentMethod = 'upi' | 'card' | 'cod';
 
 export function CheckoutPage() {
   const { cartItems, cartTotal, clearCart } = useCart();
+  const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
+
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
+  }
 
   const [form, setForm] = useState({ name: '', phone: '', address: '', city: '', state: '', pincode: '', email: '' });
   const [payment, setPayment] = useState<PaymentMethod>('upi');
