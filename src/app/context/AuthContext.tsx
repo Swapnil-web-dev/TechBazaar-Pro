@@ -6,6 +6,8 @@ export interface User {
   email: string;
   role: 'student' | 'vendor' | 'admin';
   avatar?: string;
+  joinDate?: string;
+  status?: string;
 }
 
 interface AuthContextType {
@@ -50,7 +52,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       email,
       role: email.includes('vendor') ? 'vendor' : 'student',
+      joinDate: new Date().toISOString().split('T')[0],
+      status: 'Active',
     };
+
+    // Add to all users list if not exists
+    try {
+      const allUsers = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
+      if (!allUsers.find((u: User) => u.email === mockUser.email)) {
+        allUsers.push(mockUser);
+        localStorage.setItem('tb_all_users', JSON.stringify(allUsers));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     setUser(mockUser);
     localStorage.setItem('tb_user', JSON.stringify(mockUser));
     return true;
@@ -63,7 +79,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name,
       email,
       role,
+      joinDate: new Date().toISOString().split('T')[0],
+      status: 'Active',
     };
+
+    // Add to all users list
+    try {
+      const allUsers = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
+      if (!allUsers.find((u: User) => u.email === newUser.email)) {
+        allUsers.push(newUser);
+        localStorage.setItem('tb_all_users', JSON.stringify(allUsers));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     setUser(newUser);
     localStorage.setItem('tb_user', JSON.stringify(newUser));
     return true;

@@ -7,31 +7,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 
-// --- Mock Data ---
-const MOCK_USERS = [
-  { id: 'usr_1', name: 'Rahul Sharma', email: 'rahul@example.com', role: 'student', joinDate: '2023-10-12', status: 'Active' },
-  { id: 'usr_2', name: 'Priya Patel', email: 'priya@example.com', role: 'vendor', joinDate: '2023-08-05', status: 'Active' },
-  { id: 'usr_3', name: 'Amit Singh', email: 'amit@example.com', role: 'student', joinDate: '2024-01-22', status: 'Inactive' },
-  { id: 'usr_4', name: 'Neha Gupta', email: 'neha@example.com', role: 'vendor', joinDate: '2023-11-30', status: 'Active' },
-  { id: 'usr_5', name: 'Vikram Verma', email: 'vikram@example.com', role: 'student', joinDate: '2024-02-15', status: 'Active' },
-];
-
+// --- Data Types ---
 type OrderStatus = 'Placed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
 
-const INITIAL_MOCK_ORDERS = [
-  { id: 'ORD-2024-001', product: 'Arduino Uno R3 Starter Kit', customer: 'Rahul Sharma', amount: 1899, date: '2024-03-24', status: 'Delivered' as OrderStatus },
-  { id: 'ORD-2024-002', product: 'Raspberry Pi 5 8GB', customer: 'Amit Singh', amount: 8999, date: '2024-03-25', status: 'Shipped' as OrderStatus },
-  { id: 'ORD-2024-003', product: 'ESP32 Module', customer: 'Vikram Verma', amount: 599, date: '2024-03-25', status: 'Processing' as OrderStatus },
-  { id: 'ORD-2024-004', product: 'Robot Car Chassis', customer: 'Rahul Sharma', amount: 2499, date: '2024-03-26', status: 'Placed' as OrderStatus },
-  { id: 'ORD-2024-005', product: 'Soldering Station 60W', customer: 'Neha Gupta', amount: 1299, date: '2024-03-26', status: 'Placed' as OrderStatus },
-];
+interface OrderItem {
+  id: string;
+  product: string;
+  customer: string;
+  amount: number;
+  date: string;
+  status: OrderStatus;
+}
 
 export function AdminDashboardPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'orders' | 'settings'>('dashboard');
-  const [orders, setOrders] = useState(INITIAL_MOCK_ORDERS);
+  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('tb_all_users') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   // Route protection
   if (!user || user.role !== 'admin') {
@@ -67,9 +67,9 @@ export function AdminDashboardPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {[
-          { label: 'Total Users', value: MOCK_USERS.length, desc: '+12% from last month', color: 'text-blue-600' },
-          { label: 'Recent Orders', value: orders.length, desc: '+4 this week', color: 'text-indigo-600' },
-          { label: 'Total Revenue', value: `₹${orders.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}`, desc: '+18% from last month', color: 'text-emerald-600' },
+          { label: 'Total Users', value: registeredUsers.length, desc: 'Total registered users', color: 'text-blue-600' },
+          { label: 'Recent Orders', value: orders.length, desc: 'Recent active orders', color: 'text-indigo-600' },
+          { label: 'Total Revenue', value: `₹${orders.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}`, desc: 'Total revenue from orders', color: 'text-emerald-600' },
         ].map((stat, idx) => (
           <Card key={idx} className="border-0 shadow-sm bg-white hover:shadow-md transition">
             <CardContent className="p-6">
@@ -118,7 +118,13 @@ export function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y text-sm">
-              {MOCK_USERS.map((u) => (
+              {registeredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
+                    No registered users found.
+                  </td>
+                </tr>
+              ) : registeredUsers.map((u) => (
                 <tr key={u.id} className="hover:bg-gray-50/50 transition">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
@@ -136,12 +142,12 @@ export function AdminDashboardPage() {
                       {u.role}
                     </Badge>
                   </td>
-                  <td className="p-4 text-gray-500">{u.joinDate}</td>
+                  <td className="p-4 text-gray-500">{u.joinDate || '-'}</td>
                   <td className="p-4">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                       u.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                     }`}>
-                      {u.status}
+                      {u.status || 'Active'}
                     </span>
                   </td>
                   <td className="p-4 text-right">
@@ -179,7 +185,13 @@ export function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y text-sm">
-              {orders.map((o) => (
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                    No orders found.
+                  </td>
+                </tr>
+              ) : orders.map((o) => (
                 <tr key={o.id} className="hover:bg-gray-50/50 transition">
                   <td className="p-4 font-medium text-gray-900">{o.id}</td>
                   <td className="p-4">
