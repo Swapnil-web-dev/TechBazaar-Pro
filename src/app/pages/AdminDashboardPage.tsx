@@ -113,6 +113,32 @@ export function AdminDashboardPage() {
     navigate('/admin/login');
   };
 
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!window.confirm(`Are you sure you want to delete user ${userEmail}?`)) return;
+
+    if (dataSource === 'supabase' && supabase) {
+      const { error } = await supabase.from('users').delete().eq('id', userId);
+      if (error) {
+        console.error('[Supabase] Delete error:', error.message);
+        toast.error('Failed to delete user.');
+      } else {
+        toast.success(`User ${userEmail} deleted successfully.`);
+      }
+    } else {
+      // localStorage fallback
+      try {
+        const users = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
+        const updatedUsers = users.filter((u: any) => u.id !== userId);
+        localStorage.setItem('tb_all_users', JSON.stringify(updatedUsers));
+        refreshFromLocalStorage();
+        toast.success(`User ${userEmail} deleted locally.`);
+      } catch (e) {
+        console.error('Failed to delete user locally', e);
+        toast.error('Failed to delete user locally.');
+      }
+    }
+  };
+
   const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     toast.success(`Order ${orderId} marked as ${newStatus}`);
@@ -241,9 +267,10 @@ export function AdminDashboardPage() {
                       {u.status || 'Active'}
                     </span>
                   </td>
-                  <td className="p-4 text-right">
+                  <td className="p-4 text-right whitespace-nowrap">
                     <button onClick={() => setSelectedUser(u)} className="text-emerald-600 font-medium hover:underline mr-4">Show</button>
-                    <button className="text-indigo-600 font-medium hover:underline">Edit</button>
+                    <button className="text-indigo-600 font-medium hover:underline mr-4">Edit</button>
+                    <button onClick={() => handleDeleteUser(u.id, u.email)} className="text-red-600 font-medium hover:underline">Delete</button>
                   </td>
                 </tr>
               ))}
