@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, useNavigate, Link } from 'react-router';
 import { Button } from '../components/ui/button';
-import { Shield, Users, ShoppingBag, Settings, LogOut, LayoutDashboard, ChevronRight, Package, CheckCircle, Truck, RefreshCw } from 'lucide-react';
+import { Shield, Users, Settings, LogOut, LayoutDashboard, ChevronRight, Package, CheckCircle, Truck, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
@@ -27,6 +27,7 @@ export function AdminDashboardPage() {
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [selectedUser, setSelectedUser] = useState<any>(null);
 
   const refreshUsers = useCallback(() => {
     try {
@@ -59,9 +60,8 @@ export function AdminDashboardPage() {
     const interval = setInterval(refreshUsers, 5000);
     return () => clearInterval(interval);
   }, [refreshUsers]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
 
-  // Route protection
+  // Route protection — must come after all hooks
   if (!user || user.role !== 'admin') {
     return <Navigate to="/admin/login" replace />;
   }
