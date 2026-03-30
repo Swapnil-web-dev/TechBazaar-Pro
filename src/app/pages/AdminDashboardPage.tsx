@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, useNavigate, Link } from 'react-router';
 import { Button } from '../components/ui/button';
@@ -25,13 +25,40 @@ export function AdminDashboardPage() {
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'orders' | 'settings'>('dashboard');
   const [orders, setOrders] = useState<OrderItem[]>([]);
-  const [registeredUsers, setRegisteredUsers] = useState<any[]>(() => {
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+
+  const refreshUsers = useCallback(() => {
     try {
-      return JSON.parse(localStorage.getItem('tb_all_users') || '[]');
+      const users = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
+      setRegisteredUsers(users);
+      setLastRefreshed(new Date());
     } catch {
-      return [];
+      setRegisteredUsers([]);
     }
-  });
+  }, []);
+
+  // Load on mount
+  useEffect(() => {
+    refreshUsers();
+  }, [refreshUsers]);
+
+  // Listen for registrations from other tabs/windows on the same browser
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'tb_all_users') {
+        refreshUsers();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [refreshUsers]);
+
+  // Poll every 5 seconds as a fallback for same-tab registrations
+  useEffect(() => {
+    const interval = setInterval(refreshUsers, 5000);
+    return () => clearInterval(interval);
+  }, [refreshUsers]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
   // Route protection
@@ -81,7 +108,7 @@ export function AdminDashboardPage() {
           </Card>
         ))}
       </div>
-      
+
       <Card className="border-0 shadow-sm bg-white min-h-[400px]">
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
@@ -103,13 +130,16 @@ export function AdminDashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-500 mt-1">View and manage registered students and vendors.</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          <span className="text-xs text-gray-400">Last updated: {lastRefreshed.toLocaleTimeString()}</span>
+          <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50" onClick={() => { refreshUsers(); toast.success('User list refreshed!'); }}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+          </Button>
           <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
             localStorage.removeItem('tb_all_users');
             setRegisteredUsers([]);
             toast.success('All users cleared from admin panel');
           }}>Clear All Users</Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Add New User</Button>
         </div>
       </div>
 
@@ -152,9 +182,8 @@ export function AdminDashboardPage() {
                   </td>
                   <td className="p-4 text-gray-500">{u.joinDate || '-'}</td>
                   <td className="p-4">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      u.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                    }`}>
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${u.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                      }`}>
                       {u.status || 'Active'}
                     </span>
                   </td>
@@ -232,10 +261,10 @@ export function AdminDashboardPage() {
                   <td className="p-4 font-semibold text-emerald-600">₹{o.amount.toLocaleString()}</td>
                   <td className="p-4">
                     <Badge className={
-                      o.status === 'Delivered' ? 'bg-emerald-500 hover:bg-emerald-600' : 
-                      o.status === 'Shipped' ? 'bg-blue-500 hover:bg-blue-600' :
-                      o.status === 'Processing' ? 'bg-yellow-500 hover:bg-yellow-600 text-white' :
-                      'bg-gray-500 hover:bg-gray-600'
+                      o.status === 'Delivered' ? 'bg-emerald-500 hover:bg-emerald-600' :
+                        o.status === 'Shipped' ? 'bg-blue-500 hover:bg-blue-600' :
+                          o.status === 'Processing' ? 'bg-yellow-500 hover:bg-yellow-600 text-white' :
+                            'bg-gray-500 hover:bg-gray-600'
                     }>
                       {o.status}
                     </Badge>
@@ -283,14 +312,14 @@ export function AdminDashboardPage() {
             <span className="text-xl font-bold">TechBazaar <span className="text-indigo-400">Admin</span></span>
           </Link>
         </div>
-        
+
         <nav className="flex-1 px-4 py-6 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
-              <button 
-                key={item.id} 
+              <button
+                key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}
               >
@@ -301,7 +330,7 @@ export function AdminDashboardPage() {
             );
           })}
         </nav>
-        
+
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center gap-3 mb-4 px-2">
             <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-white shadow-lg">
