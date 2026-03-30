@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, useNavigate, Link } from 'react-router';
 import { Button } from '../components/ui/button';
-import { Shield, Users, Settings, LogOut, LayoutDashboard, ChevronRight, Package, CheckCircle, Truck, RefreshCw } from 'lucide-react';
+import { Shield, Users, Settings, LogOut, LayoutDashboard, ChevronRight, Package, CheckCircle, Truck, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 
 // --- Data Types ---
 type OrderStatus = 'Placed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
@@ -28,8 +29,10 @@ export function AdminDashboardPage() {
   const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [dataSource, setDataSource] = useState<'supabase' | 'local'>('local');
 
-  const refreshUsers = useCallback(() => {
+  // ── localStorage refresh (fallback when Supabase not configured) ─────────────
+  const refreshFromLocalStorage = useCallback(() => {
     try {
       const users = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
       setRegisteredUsers(users);
@@ -39,27 +42,66 @@ export function AdminDashboardPage() {
     }
   }, []);
 
-  // Load on mount
+  // ── Main data source: Supabase real-time OR localStorage fallback ─────────────
   useEffect(() => {
-    refreshUsers();
-  }, [refreshUsers]);
+    if (isSupabaseConfigured && supabase) {
+      // ✅ SUPABASE: Fetch all users + subscribe to real-time changes
+      const sb = supabase; // non-null reference for use inside closures
+      setDataSource('supabase');
 
-  // Listen for registrations from other tabs/windows on the same browser
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'tb_all_users') {
-        refreshUsers();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [refreshUsers]);
+      const fetchUsers = async () => {
+        const { data, error } = await sb
+          .from('users')
+          .select('*')
+          .order('join_date', { ascending: false });
+        if (error) {
+          console.error('[Supabase] Fetch error:', error.message);
+          toast.error('Supabase error — check table name and RLS policies.');
+        } else {
+          const mapped = (data || []).map((row) => ({
+            id:       row.id,
+            name:     row.name,
+            email:    row.email,
+            role:     row.role,
+            joinDate: row.join_date,
+            status:   row.status,
+          }));
+          setRegisteredUsers(mapped);
+          setLastRefreshed(new Date());
+        }
+      };
 
-  // Poll every 5 seconds as a fallback for same-tab registrations
-  useEffect(() => {
-    const interval = setInterval(refreshUsers, 5000);
-    return () => clearInterval(interval);
-  }, [refreshUsers]);
+      fetchUsers();
+
+      // Real-time: listen for INSERT / UPDATE / DELETE on the users table
+      const channel = sb
+        .channel('admin-users-feed')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'users' },
+          () => fetchUsers() // re-fetch on any change
+        )
+        .subscribe();
+
+      return () => { sb.removeChannel(channel); };
+
+    } else {
+      // ⚠️ FALLBACK: localStorage (same browser only)
+      setDataSource('local');
+      refreshFromLocalStorage();
+
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'tb_all_users') refreshFromLocalStorage();
+      };
+      window.addEventListener('storage', handleStorageChange);
+      const interval = setInterval(refreshFromLocalStorage, 5000);
+
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        clearInterval(interval);
+      };
+    }
+  }, [refreshFromLocalStorage]);
 
   // Route protection — must come after all hooks
   if (!user || user.role !== 'admin') {
@@ -130,16 +172,28 @@ export function AdminDashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-500 mt-1">View and manage registered students and vendors.</p>
         </div>
-        <div className="flex gap-4 items-center">
-          <span className="text-xs text-gray-400">Last updated: {lastRefreshed.toLocaleTimeString()}</span>
-          <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50" onClick={() => { refreshUsers(); toast.success('User list refreshed!'); }}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-          </Button>
-          <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
+        <div className="flex gap-3 items-center flex-wrap">
+          {/* Data source badge */}
+          {dataSource === 'supabase' ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+              <Wifi className="w-3 h-3" /> Live · Supabase
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+              <WifiOff className="w-3 h-3" /> Local only · Set up Firebase to sync
+            </span>
+          )}
+          <span className="text-xs text-gray-400">Updated: {lastRefreshed.toLocaleTimeString()}</span>
+          {dataSource === 'local' && (
+            <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 h-8 text-xs" onClick={() => { refreshFromLocalStorage(); toast.success('Refreshed!'); }}>
+              <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+            </Button>
+          )}
+          <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs" onClick={() => {
             localStorage.removeItem('tb_all_users');
-            setRegisteredUsers([]);
-            toast.success('All users cleared from admin panel');
-          }}>Clear All Users</Button>
+            if (dataSource === 'local') setRegisteredUsers([]);
+            toast.success('Local cache cleared');
+          }}>Clear Local</Button>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 
 export interface User {
   id: string;
@@ -20,76 +21,124 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ─── localStorage helpers (used when Supabase is not configured) ──────────────
+const LS_ALL_USERS = 'tb_all_users';
+const LS_USER      = 'tb_user';
+
+function lsGetUsers(): User[] {
+  try { return JSON.parse(localStorage.getItem(LS_ALL_USERS) || '[]'); }
+  catch { return []; }
+}
+function lsSaveUsers(users: User[]) {
+  localStorage.setItem(LS_ALL_USERS, JSON.stringify(users));
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem('tb_user');
+      const saved = localStorage.getItem(LS_USER);
       return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   });
 
+  // ── Login ─────────────────────────────────────────────────────────────────────
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Admin login check
+
+    // Admin hardcoded login — never goes to DB
     if (email.toLowerCase() === 'swapnil' && password === 'swap@1522') {
       const adminUser: User = {
-        id: 'admin-1',
-        name: 'Swapnil',
-        email: 'swapnil@techbazaar.com',
-        role: 'admin',
+        id: 'admin-1', name: 'Swapnil',
+        email: 'swapnil@techbazaar.com', role: 'admin',
       };
       setUser(adminUser);
-      localStorage.setItem('tb_user', JSON.stringify(adminUser));
+      localStorage.setItem(LS_USER, JSON.stringify(adminUser));
       return true;
     }
 
-    // Check if user is registered
-    try {
-      const allUsers = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
-      const existingUser = allUsers.find((u: User) => u.email === email);
+    if (isSupabaseConfigured && supabase) {
+      // ✅ Supabase path — queries cloud database
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error || !data) return false;
+
+      const loggedIn: User = {
+        id: data.id, name: data.name, email: data.email,
+        role: data.role, joinDate: data.join_date, status: data.status,
+      };
+      setUser(loggedIn);
+      localStorage.setItem(LS_USER, JSON.stringify(loggedIn));
+      return true;
+    } else {
+      // ⚠️ localStorage fallback — same browser only
+      const existingUser = lsGetUsers().find((u) => u.email === email);
       if (existingUser) {
         setUser(existingUser);
-        localStorage.setItem('tb_user', JSON.stringify(existingUser));
+        localStorage.setItem(LS_USER, JSON.stringify(existingUser));
         return true;
       }
-      return false; // Not registered
-    } catch (e) {
-      console.error(e);
       return false;
     }
   };
 
-  const register = async (name: string, email: string, _password: string, role: 'student' | 'vendor' | 'admin'): Promise<boolean> => {
+  // ── Register ──────────────────────────────────────────────────────────────────
+  const register = async (
+    name: string, email: string, _password: string,
+    role: 'student' | 'vendor' | 'admin'
+  ): Promise<boolean> => {
     if (!name || !email) return false;
-    const newUser: User = {
-      id: Math.random().toString(36).slice(2),
-      name,
-      email,
-      role,
-      joinDate: new Date().toISOString().split('T')[0],
-      status: 'Active',
-    };
 
-    // Add to all users list
-    try {
-      const allUsers = JSON.parse(localStorage.getItem('tb_all_users') || '[]');
-      if (!allUsers.find((u: User) => u.email === newUser.email)) {
-        allUsers.push(newUser);
-        localStorage.setItem('tb_all_users', JSON.stringify(allUsers));
+    const joinDate = new Date().toISOString().split('T')[0];
+
+    if (isSupabaseConfigured && supabase) {
+      // ✅ Supabase path — saves to cloud, instantly visible in admin panel
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{ name, email, role, join_date: joinDate, status: 'Active' }])
+        .select()
+        .single();
+
+      if (error) {
+        // Duplicate email: log and fall through
+        if (error.code === '23505') {
+          console.warn('[Supabase] Email already registered:', email);
+        } else {
+          console.error('[Supabase] Register error:', error.message);
+          return false;
+        }
       }
-    } catch (e) {
-      console.error(e);
-    }
 
-    setUser(newUser);
-    localStorage.setItem('tb_user', JSON.stringify(newUser));
-    return true;
+      const newUser: User = {
+        id: data?.id || Math.random().toString(36).slice(2),
+        name, email, role, joinDate, status: 'Active',
+      };
+      setUser(newUser);
+      localStorage.setItem(LS_USER, JSON.stringify(newUser));
+      return true;
+    } else {
+      // ⚠️ localStorage fallback
+      const newUser: User = {
+        id: Math.random().toString(36).slice(2),
+        name, email, role, joinDate, status: 'Active',
+      };
+      const allUsers = lsGetUsers();
+      if (!allUsers.find((u) => u.email === email)) {
+        allUsers.push(newUser);
+        lsSaveUsers(allUsers);
+      }
+      setUser(newUser);
+      localStorage.setItem(LS_USER, JSON.stringify(newUser));
+      return true;
+    }
   };
 
+  // ── Logout ────────────────────────────────────────────────────────────────────
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('tb_user');
+    localStorage.removeItem(LS_USER);
   };
 
   return (
