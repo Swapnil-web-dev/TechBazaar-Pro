@@ -7,6 +7,7 @@ export interface User {
   email: string;
   role: 'student' | 'vendor' | 'admin';
   avatar?: string;
+  mobile?: string;
   joinDate?: string;
   status?: string;
 }
@@ -15,7 +16,8 @@ interface AuthContextType {
   user: User | null;
   isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, role: 'student' | 'vendor' | 'admin') => Promise<boolean>;
+  register: (name: string, email: string, password: string, role: 'student' | 'vendor' | 'admin', mobile: string) => Promise<boolean>;
+  updateProfile: (updates: Partial<User>) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -87,7 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Register ──────────────────────────────────────────────────────────────────
   const register = async (
     name: string, email: string, _password: string,
-    role: 'student' | 'vendor' | 'admin'
+    role: 'student' | 'vendor' | 'admin',
+    mobile: string
   ): Promise<boolean> => {
     if (!name || !email) return false;
 
@@ -97,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ✅ Supabase path — saves to cloud, instantly visible in admin panel
       const { data, error } = await supabase
         .from('users')
-        .insert([{ name, email, role, join_date: joinDate, status: 'Active' }])
+        .insert([{ name, email, role, join_date: joinDate, status: 'Active', mobile }])
         .select()
         .single();
 
@@ -106,15 +109,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error.code === '23505') {
           console.warn('[Supabase] Email already registered:', email);
         } else {
-          console.error('[Supabase] Register error:', error.message);
-          return false;
+          console.warn('[Supabase] Register error (falling back locally):', error.message);
         }
       }
 
       const newUser: User = {
         id: data?.id || Math.random().toString(36).slice(2),
-        name, email, role, joinDate, status: 'Active',
+        name, email, role, joinDate, status: 'Active', mobile
       };
+      
+      try {
+        const allUsers = lsGetUsers();
+        if (!allUsers.find((u) => u.email === email)) {
+          allUsers.push(newUser);
+          lsSaveUsers(allUsers);
+        }
+      } catch {}
+
       setUser(newUser);
       localStorage.setItem(LS_USER, JSON.stringify(newUser));
       return true;
@@ -122,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ⚠️ localStorage fallback
       const newUser: User = {
         id: Math.random().toString(36).slice(2),
-        name, email, role, joinDate, status: 'Active',
+        name, email, role, joinDate, status: 'Active', mobile
       };
       const allUsers = lsGetUsers();
       if (!allUsers.find((u) => u.email === email)) {
@@ -135,6 +146,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ── Update Profile ────────────────────────────────────────────────────────────
+  const updateProfile = async (updates: Partial<User>): Promise<boolean> => {
+    if (!user) return false;
+    
+    const updatedUser = { ...user, ...updates };
+    
+    const saveLocally = () => {
+      setUser(updatedUser);
+      localStorage.setItem(LS_USER, JSON.stringify(updatedUser));
+      const allUsers = lsGetUsers();
+      const updatedAllUsers = allUsers.map(u => u.id === user.id ? updatedUser : u);
+      lsSaveUsers(updatedAllUsers);
+      window.dispatchEvent(new Event('storage'));
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      // We map local fields to DB columns
+      const dbUpdates: any = {
+        name: updatedUser.name,
+        email: updatedUser.email,
+        mobile: updatedUser.mobile,
+        avatar: updatedUser.avatar
+      };
+
+      const { error } = await supabase
+        .from('users')
+        .update(dbUpdates)
+        .eq('id', user.id);
+
+      if (error) {
+        console.warn('[Supabase] Profile update error (falling back locally):', error.message);
+        saveLocally();
+      } else {
+        saveLocally();
+      }
+      return true;
+    } else {
+      saveLocally();
+      return true;
+    }
+  };
+
   // ── Logout ────────────────────────────────────────────────────────────────────
   const logout = () => {
     setUser(null);
@@ -142,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn: !!user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoggedIn: !!user, login, register, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

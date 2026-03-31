@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent } from '../components/ui/card';
-import { Cpu, Eye, EyeOff, User, Mail, Lock, GraduationCap, Store } from 'lucide-react';
+import { Cpu, Eye, EyeOff, User, Mail, Lock, GraduationCap, Store, Smartphone } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { isSupabaseConfigured } from '../../lib/supabase';
@@ -12,7 +12,7 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 type Role = 'student' | 'vendor';
 
 export function RegisterPage() {
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ name: '', email: '', mobile: '', password: '', confirm: '' });
   const [role, setRole] = useState<Role>('student');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,11 +25,12 @@ export function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.password) { toast.error('Please fill all required fields'); return; }
+    if (!form.name || !form.email || !form.mobile || !form.password) { toast.error('Please fill all required fields'); return; }
+    if (form.mobile.length < 10) { toast.error('Please enter a valid mobile number'); return; }
     if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
     if (form.password !== form.confirm) { toast.error('Passwords do not match'); return; }
     setLoading(true);
-    const ok = await register(form.name, form.email, form.password, role);
+    const ok = await register(form.name, form.email, form.password, role, form.mobile);
     setLoading(false);
     if (ok) {
       toast.success('Account created successfully! 🎉');
@@ -86,6 +87,13 @@ export function RegisterPage() {
                 <div className="relative mt-1">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input id="email" name="email" type="email" placeholder="rahul@example.com" className="pl-10" value={form.email} onChange={handleChange} />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="mobile">Mobile Number *</Label>
+                <div className="relative mt-1">
+                  <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input id="mobile" name="mobile" type="tel" placeholder="9876543210" maxLength={10} className="pl-10" value={form.mobile} onChange={handleChange} />
                 </div>
               </div>
               <div>

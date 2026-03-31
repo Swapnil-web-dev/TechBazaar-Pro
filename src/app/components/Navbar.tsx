@@ -116,8 +116,11 @@ export function Navbar() {
                   onClick={() => setUserMenuOpen(v => !v)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition"
                 >
-                  <div className="w-7 h-7 bg-purple-100 rounded-full flex items-center justify-center">
-                    <span className="text-purple-700 text-xs font-bold">{user?.name?.charAt(0).toUpperCase()}</span>
+                  <div 
+                    className="w-7 h-7 bg-purple-100 rounded-full flex items-center justify-center bg-cover bg-center overflow-hidden"
+                    style={user?.avatar ? { backgroundImage: `url(${user?.avatar})` } : {}}
+                  >
+                    {!user?.avatar && <span className="text-purple-700 text-xs font-bold">{user?.name?.charAt(0).toUpperCase()}</span>}
                   </div>
                   <span className="text-sm font-medium max-w-[80px] truncate">{user?.name?.split(' ')[0]}</span>
                   <ChevronDown className="w-3 h-3 text-gray-500" />
@@ -129,8 +132,11 @@ export function Navbar() {
                       <p className="text-sm font-semibold">{user?.name}</p>
                       <p className="text-xs text-gray-500 capitalize">{user?.role} account</p>
                     </div>
+                    <Link to="/profile" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={() => setUserMenuOpen(false)}>
+                      <User className="w-4 h-4 text-gray-500" /> My Profile
+                    </Link>
                     {user?.role === 'vendor' && (
-                      <Link to="/vendor-dashboard" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition">
+                      <Link to="/vendor-dashboard" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={() => setUserMenuOpen(false)}>
                         <User className="w-4 h-4 text-gray-500" /> Vendor Dashboard
                       </Link>
                     )}
@@ -171,9 +177,14 @@ export function Navbar() {
                 </Link>
               ))}
               {isLoggedIn ? (
-                <button onClick={handleLogout} className="py-2 px-2 text-sm text-red-600 flex items-center gap-2 hover:bg-red-50 rounded-lg">
-                  <LogOut className="w-4 h-4" /> Logout ({user?.name?.split(' ')[0]})
-                </button>
+                <>
+                  <Link to="/profile" className="py-2 px-2 text-sm text-gray-700 flex items-center gap-2 hover:bg-gray-50 rounded-lg" onClick={() => setMobileMenuOpen(false)}>
+                    <User className="w-4 h-4" /> My Profile
+                  </Link>
+                  <button onClick={handleLogout} className="py-2 px-2 text-sm text-red-600 flex items-center gap-2 hover:bg-red-50 rounded-lg">
+                    <LogOut className="w-4 h-4" /> Logout ({user?.name?.split(' ')[0]})
+                  </button>
+                </>
               ) : (
                 <Link to="/login" className="py-2 px-2 text-purple-600 font-medium text-sm">Login / Register</Link>
               )}

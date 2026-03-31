@@ -42,6 +42,16 @@ export function AdminDashboardPage() {
     }
   }, []);
 
+  const refreshOrdersLocally = useCallback(() => {
+    try {
+      const o = JSON.parse(localStorage.getItem('tb_all_orders') || '[]');
+      o.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setOrders(o);
+    } catch {
+      setOrders([]);
+    }
+  }, []);
+
   // ── Main data source: Supabase real-time OR localStorage fallback ─────────────
   useEffect(() => {
     if (isSupabaseConfigured && supabase) {
@@ -113,6 +123,56 @@ export function AdminDashboardPage() {
     }
   }, [refreshFromLocalStorage]);
 
+  // ── Orders synchronization hook ─────────────
+  useEffect(() => {
+    if (isSupabaseConfigured && supabase) {
+      const sb = supabase;
+      const fetchOrders = async () => {
+        const { data, error } = await sb
+          .from('orders')
+          .select('*')
+          .order('date', { ascending: false });
+        if (error) {
+          console.warn('[Supabase] Orders fetch error:', error.message);
+          refreshOrdersLocally();
+        } else {
+          setOrders(data || []);
+        }
+      };
+
+      (window as any).__refreshSupabaseOrders = fetchOrders;
+      fetchOrders();
+
+      const channel = sb
+        .channel('admin-orders-feed')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          () => fetchOrders()
+        )
+        .subscribe();
+
+      const interval = setInterval(fetchOrders, 5000);
+
+      return () => { 
+        sb.removeChannel(channel); 
+        clearInterval(interval);
+        delete (window as any).__refreshSupabaseOrders;
+      };
+    } else {
+      refreshOrdersLocally();
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'tb_all_orders') refreshOrdersLocally();
+      };
+      window.addEventListener('storage', handleStorageChange);
+      const interval = setInterval(refreshOrdersLocally, 5000);
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        clearInterval(interval);
+      };
+    }
+  }, [refreshOrdersLocally]);
+
   // Route protection — must come after all hooks
   if (!user || user.role !== 'admin') {
     return <Navigate to="/admin/login" replace />;
@@ -149,9 +209,29 @@ export function AdminDashboardPage() {
     }
   };
 
-  const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-    toast.success(`Order ${orderId} marked as ${newStatus}`);
+  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    const updateLocally = () => {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      try {
+        const existing = JSON.parse(localStorage.getItem('tb_all_orders') || '[]');
+        const updated = existing.map((o: any) => o.id === orderId ? { ...o, status: newStatus } : o);
+        localStorage.setItem('tb_all_orders', JSON.stringify(updated));
+      } catch {}
+      toast.success(`Order ${orderId} marked as ${newStatus}`);
+    };
+
+    if (dataSource === 'supabase' && supabase) {
+      const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
+      if (error) {
+        console.warn('Supabase update error, falling back locally', error.message);
+        updateLocally();
+      } else {
+        toast.success(`Order ${orderId} marked as ${newStatus}`);
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      }
+    } else {
+      updateLocally();
+    }
   };
 
   const navItems = [
@@ -224,8 +304,10 @@ export function AdminDashboardPage() {
           <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 h-8 text-xs" onClick={() => {
             if (dataSource === 'supabase' && (window as any).__refreshSupabaseUsers) {
               (window as any).__refreshSupabaseUsers();
+              if ((window as any).__refreshSupabaseOrders) (window as any).__refreshSupabaseOrders();
             } else {
               refreshFromLocalStorage();
+              refreshOrdersLocally();
             }
             toast.success('List Refreshed!');
           }}>
@@ -235,7 +317,9 @@ export function AdminDashboardPage() {
           {dataSource === 'local' && (
             <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs" onClick={() => {
               localStorage.removeItem('tb_all_users');
+              localStorage.removeItem('tb_all_orders');
               setRegisteredUsers([]);
+              setOrders([]);
               toast.success('Local cache cleared');
             }}>Clear Local</Button>
           )}

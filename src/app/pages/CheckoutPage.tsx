@@ -11,13 +11,18 @@ import { MapPin, CreditCard, Smartphone, Truck, CheckCircle2, Lock } from 'lucid
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 
 type PaymentMethod = 'upi' | 'card' | 'cod';
 
 export function CheckoutPage() {
   const { cartItems, cartTotal, clearCart } = useCart();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const navigate = useNavigate();
+
+  function generateOrderId() {
+    return 'TBP-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
 
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
@@ -47,9 +52,45 @@ export function CheckoutPage() {
     }
     setLoading(true);
     await new Promise(r => setTimeout(r, 1500)); // Simulate API call
+
+    // --- Save Order Logic ---
+    const orderId = generateOrderId();
+    const productDesc = cartItems.map(i => `${i.name} (x${i.quantity})`).join(', ');
+    const orderData = {
+      id: orderId,
+      product: productDesc,
+      customer: form.name,
+      user_email: user?.email || form.email || '',
+      amount: total + (payment === 'cod' ? 20 : 0),
+      date: new Date().toISOString().split('T')[0],
+      status: 'Placed'
+    };
+
+    const saveOrderLocally = (data: any) => {
+      try {
+        const existing = JSON.parse(localStorage.getItem('tb_all_orders') || '[]');
+        existing.push(data);
+        localStorage.setItem('tb_all_orders', JSON.stringify(existing));
+        window.dispatchEvent(new Event('storage'));
+      } catch (e) {
+        console.error('Failed to save order locally', e);
+      }
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('orders').insert([orderData]);
+      if (error) {
+        console.warn('Supabase DB error (table might not exist). Falling back to local storage.', error);
+        saveOrderLocally(orderData);
+      }
+    } else {
+      saveOrderLocally(orderData);
+    }
+    // ------------------------
+
     clearCart();
     setLoading(false);
-    navigate('/order-confirmation');
+    navigate('/order-confirmation', { state: { orderId } });
   };
 
   const payOptions: { id: PaymentMethod; label: string; icon: React.ElementType; desc: string }[] = [

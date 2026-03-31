@@ -14,6 +14,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminLoginPage } from "./pages/AdminLoginPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 export const router = createBrowserRouter([
   { path: "/", Component: HomePage },
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
   { path: "/register", Component: RegisterPage },
   { path: "/admin/login", Component: AdminLoginPage },
   { path: "/admin/dashboard", Component: AdminDashboardPage },
+  { path: "/profile", Component: ProfilePage },
   { path: "*", Component: NotFoundPage },
 ]);
 
