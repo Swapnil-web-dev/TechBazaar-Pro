@@ -7,6 +7,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Cpu, Eye, EyeOff, User, Mail, Lock, GraduationCap, Store } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 type Role = 'student' | 'vendor';
 
@@ -50,6 +51,12 @@ export function RegisterPage() {
           <CardContent className="p-8">
             <h1 className="text-2xl font-bold text-center mb-1">Create your account</h1>
             <p className="text-gray-500 text-center text-sm mb-6">Join 12,000+ tech students and vendors</p>
+
+            {!isSupabaseConfigured && (
+              <div className="mb-6 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm border border-yellow-200">
+                <strong>Offline Mode Active:</strong> You are currently registering locally. Restart your Vite dev server to load Supabase, otherwise this account won't appear in the Admin Panel.
+              </div>
+            )}
 
             {/* Role Toggle */}
             <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl mb-6">

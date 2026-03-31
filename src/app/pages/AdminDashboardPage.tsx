@@ -71,6 +71,9 @@ export function AdminDashboardPage() {
         }
       };
 
+      // Expose to window for manual/interval refreshing
+      (window as any).__refreshSupabaseUsers = fetchUsers;
+
       fetchUsers();
 
       // Real-time: listen for INSERT / UPDATE / DELETE on the users table
@@ -83,7 +86,14 @@ export function AdminDashboardPage() {
         )
         .subscribe();
 
-      return () => { sb.removeChannel(channel); };
+      // Fallback polling just in case Realtime isn't enabled in Supabase dashboard
+      const interval = setInterval(fetchUsers, 5000);
+
+      return () => { 
+        sb.removeChannel(channel); 
+        clearInterval(interval);
+        delete (window as any).__refreshSupabaseUsers;
+      };
 
     } else {
       // ⚠️ FALLBACK: localStorage (same browser only)
@@ -206,20 +216,29 @@ export function AdminDashboardPage() {
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-              <WifiOff className="w-3 h-3" /> Local only · Set up Firebase to sync
+              <WifiOff className="w-3 h-3" /> Offline Mode · Check .env settings
             </span>
           )}
           <span className="text-xs text-gray-400">Updated: {lastRefreshed.toLocaleTimeString()}</span>
+          
+          <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 h-8 text-xs" onClick={() => {
+            if (dataSource === 'supabase' && (window as any).__refreshSupabaseUsers) {
+              (window as any).__refreshSupabaseUsers();
+            } else {
+              refreshFromLocalStorage();
+            }
+            toast.success('List Refreshed!');
+          }}>
+            <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+          </Button>
+
           {dataSource === 'local' && (
-            <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 h-8 text-xs" onClick={() => { refreshFromLocalStorage(); toast.success('Refreshed!'); }}>
-              <RefreshCw className="w-3 h-3 mr-1" /> Refresh
-            </Button>
+            <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs" onClick={() => {
+              localStorage.removeItem('tb_all_users');
+              setRegisteredUsers([]);
+              toast.success('Local cache cleared');
+            }}>Clear Local</Button>
           )}
-          <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs" onClick={() => {
-            localStorage.removeItem('tb_all_users');
-            if (dataSource === 'local') setRegisteredUsers([]);
-            toast.success('Local cache cleared');
-          }}>Clear Local</Button>
         </div>
       </div>
 
